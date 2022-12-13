@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="el">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+        <meta name="description" content="Ανάπτυξη Διαδικτυακών Συστημάτων και Εφαρμογών: Project Πινάκλ">
+        <meta name="author" content="Καλλέας Γεώργιος">
+        <title>ΑΔΙΣΕ: Πινάκλ</title>
+
+        <!-- Bootstrap and jquery: JS και CSS -->
+        <script src="bootstrap/jquery-3.2.1.min.js"></script>
+        <script src="bootstrap/bootstrap.min.js"></script>
+        <script src="jquery-ui-1.12.1/jquery-ui.min.js"></script>
+        <link href="bootstrap/bootstrap.min.css" rel="stylesheet">
+        <link href="jquery-ui-1.12.1/jquery-ui.min.css" rel="stylesheet">
+
+        <!--  My JS and CSS -->
+        <script src="js/pinakl.js"></script>
+        <link href="css/pinakl.css" rel="stylesheet">
+    </head>
+    <body>
+        <h1>ΠΙΝΑΚΛ</h1>
+        <div id='div_chess_board'>
+        </div>
+        <br/>
+        <div id='div_player'>
+            <input id='player_name'> 
+            <select id='player_id'>
+                <option value='1'>1ος Παίκτης</option>
+                <option value='2'>2ος Παίκτης</option>
+                <option value='3'>3ος Παίκτης</option>
+            </select>
+            <button id='btn_login' class='btn btn-primary'>ΕΙΣΟΔΟΣ ΣΤΟ ΠΑΙΧΝΙΔΙ</button><br>
+        </div>
+        <div id='div_game_info'>
+        </div>
+        <div id='div_move'>
+            <!--Δώσε κίνηση (x1 y1 x2 y2): <input id='the_move'>  <button id='do_move' class='btn btn-primary'>ΚΑΝΕ ΤΗΝ ΚΙΝΗΣΗ</button><br>
+            <br><br>
+            Δώσε κίνηση (x1 y1): <input id='the_move_src'> (x2 y2):
+            <select id='the_move_dest'></select>
+            <button id='do_move2' class='btn btn-primary'>ΚΑΝΕ ΤΗΝ ΚΙΝΗΣΗ 2</button><br>-->
+        </div>
+
+        <br/><br/>
+
+        <button id='btn_game_reset' class='btn btn-primary'>ΕΚΚΙΝΗΣΗ/ΕΠΑΝΕΚΚΙΝΗΣΗ</button><br>
+    </body>
+</html>
