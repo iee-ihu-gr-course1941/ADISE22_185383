@@ -25,9 +25,17 @@ if (isset($_SERVER['HTTP_X_TOKEN'])) {
 // Kλήση API 
 
 switch ($r = array_shift($request)) {
-    case 'status':
+    case 'game':
         if (sizeof($request) == 0) {
-            handle_status($method);
+            handle_game($method);
+        } else {
+            header("HTTP/1.1 404 Not Found");
+        }
+        break;
+
+    case 'round':
+        if (sizeof($request) == 0) {
+            handle_round($method);
         } else {
             header("HTTP/1.1 404 Not Found");
         }
@@ -56,9 +64,20 @@ switch ($r = array_shift($request)) {
         exit;
 }
 
-function handle_status($method) {
+function handle_game($method) {
     if ($method == 'GET') {
-        get_status();
+        get_game_status();
+    }
+    else if ($method == 'POST') {
+        post_game_reset();
+    } else {
+        header('HTTP/1.1 405 Method Not Allowed');
+    }
+}
+
+function handle_round($method) {
+    if ($method == 'POST') {
+        post_round_reset();
     } else {
         header('HTTP/1.1 405 Method Not Allowed');
     }

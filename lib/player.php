@@ -36,7 +36,7 @@ function post_player($player_id, $input) {
             
             db_create_player($player_id, $player_name);
 
-            db_update_game_adding_new_player();
+            db_update_game_after_create_player();
 
             ////update_game_status();
 

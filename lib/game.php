@@ -1,6 +1,6 @@
 <?php
 
-function get_status() {
+function get_game_status() {
     $game = db_read_game();
 
     if (!$game) {
@@ -11,6 +11,21 @@ function get_status() {
 
     header('Content-type: application/json');
     print json_encode($game, JSON_PRETTY_PRINT);
+}
+
+function post_game_reset() {
+    $game = db_read_game();
+    
+    if ($game && $game['game_phase'] > 1) {
+        db_game_reset();
+    }
+    else {
+        db_update_game_to_start();
+    }    
+}
+
+function post_round_reset() {
+    db_round_reset();
 }
 
 function update_game_status() {
@@ -67,7 +82,7 @@ function db_read_game() {
     $sql = 'select * from game';
 
     $st = $mysqli->prepare($sql);
-    
+
     $st->execute();
 
     $res = $st->get_result();
@@ -86,17 +101,45 @@ function db_create_game() {
     $st->execute();
 }
 
-function db_update_game_adding_new_player() {
+function db_update_game_after_create_player() {
     global $mysqli;
-    
+
     $sql = 'update game '
             . 'set game_phase = 1, '
             . 'game_players_cnt = game_players_cnt + 1, '
-            . 'game_current_player_id = 1 ';
-                
+            . 'game_current_player_id = 1, '
+            . 'game_current_player_step = 1 ';
+
     $st = $mysqli->prepare($sql);
-    
+
     $st->execute();
+}
+
+function db_update_game_to_start() {
+    global $mysqli;
+
+    $sql = 'update game '
+            . 'set game_phase = 2 ';
+
+    $st = $mysqli->prepare($sql);
+
+    $st->execute();
+}
+
+function db_game_reset() {
+    global $mysqli;
+
+    $sql = 'call game_reset()';
+
+    $mysqli->query($sql);
+}
+
+function db_round_reset() {
+    global $mysqli;
+
+    $sql = 'call round_reset()';
+
+    $mysqli->query($sql);
 }
 
 ?>

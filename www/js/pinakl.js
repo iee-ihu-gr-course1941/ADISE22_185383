@@ -8,20 +8,21 @@ $(function () {
     fill_board();
 
     $('#btn_login').click(login_to_game);
-    $('#btn_game_reset').click(reset_board);
+    $('#btn_round_reset').click(round_reset);
+    $('#btn_game_reset').click(game_reset);
     $('#do_move').click(do_move);
     $('#div_move').hide();
 
     game_status_update();
 });
 
-/**************************** Game Status *************************************/
+/**************************** Status ******************************************/
 
 function game_status_update() {
     clearTimeout(timer);
 
     $.ajax({
-        url: "pinakl.php/status/",
+        url: "pinakl.php/game/",
         success: on_game_status_update_success,
         headers: {"X-Token": me.player_token}
     });
@@ -45,7 +46,7 @@ function do_update_game_status(game_status_old) {
     clearTimeout(timer);
 
     // Είσοδος παίκτη
-    
+
     if (me.player_id) {
         if ($('#div_player').is(':visible')) {
             $('#div_player').hide(1000);
@@ -57,7 +58,7 @@ function do_update_game_status(game_status_old) {
     }
 
     // Στοιχεία παιχνιδιού
-    
+
     if (me.player_id) {
         $('#div_game_info').html('Είστε ο παίκτης #' + me.player_id + ' (Όνομα: ' + me.player_name + ', Token: ' + me.player_token + ')<br>' +
                 'Φάση Παιχνιδιού: ' + game_status.game_phase + '<br>' +
@@ -65,7 +66,7 @@ function do_update_game_status(game_status_old) {
     }
 
     // Φύλλα παικτών και στοιχεία κίνησης
-    
+
     if (game_status.game_current_player_id === me.player_id && me.player_id !== null) {
         if (game_status_old.game_current_player_id !== game_status.game_current_player_id) {
             fill_board();
@@ -83,14 +84,26 @@ function do_update_game_status(game_status_old) {
         }
     }
 
+    // Εκκίνηση/επανεκκίνηση γύρου
+
+    if (game_status.game_phase > 1) {
+        if (!$('#btn_round_reset').is(':visible')) {
+            $('#btn_round_reset').show(1000);
+        }
+    } else {
+        if ($('#btn_round_reset').is(':visible')) {
+            $('#btn_round_reset').hide(1000);
+        }
+    }
+
     // Εκκίνηση/επανεκκίνηση παιχνιδιού
-    
+
     if (game_status.game_players_cnt < 2) {
         $('#btn_game_reset').prop('disabled', true);
     } else {
         $('#btn_game_reset').prop('disabled', false);
     }
-    
+
     // Ενεργοποίηση timer
 
     timer = setTimeout(function () {
@@ -134,19 +147,35 @@ function login_error(data) {
     alert(x.errormesg);
 }
 
+/********************** Game/Round ********************************************/
+
+function game_reset() {
+    $.ajax({
+        url: "pinakl.php/game/",
+        headers: {"X-Token": me.token},
+        method: 'POST',
+        success: fill_board_by_data});
+    
+    ////$('#div_move').hide();
+    ////$('#div_player').show(2000);
+}
+
+function round_reset() {
+    $.ajax({
+        url: "pinakl.php/round/",
+        headers: {"X-Token": me.token},
+        method: 'POST',
+        success: fill_board_by_data});
+    
+    ////$('#div_move').hide();
+    ////$('#div_player').show(2000);
+}
+
 function fill_board() {
     ////
     /*$.ajax({url: "chess.php/board/",
      headers: {"X-Token": me.token},
      success: fill_board_by_data});*/
-}
-
-function reset_board() {
-    ////
-
-    /*$.ajax({url: "chess.php/board/", headers: {"X-Token": me.token}, method: 'POST', success: fill_board_by_data});
-     $('#div_move').hide();
-     $('#div_player').show(2000);*/
 }
 
 function fill_board_by_data(data) {
