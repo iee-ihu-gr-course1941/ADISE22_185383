@@ -31,7 +31,7 @@ function game_status_update() {
 function on_game_status_update_success(data) {
     last_update = new Date().getTime();
 
-    var game_status_old = game_status;
+    var game_status_old = { ...game_status};
 
     game_status = data;
 
@@ -87,8 +87,11 @@ function do_update_game_status(game_status_old) {
     // Εκκίνηση/επανεκκίνηση γύρου
 
     if (game_status.game_phase > 1) {
-        if (!$('#btn_round_reset').is(':visible')) {
+        if (me.player_id !== null && !$('#btn_round_reset').is(':visible')) {
             $('#btn_round_reset').show(1000);
+        }
+        else {
+            $('#btn_round_reset').hide(1000);
         }
     } else {
         if ($('#btn_round_reset').is(':visible')) {
@@ -98,7 +101,7 @@ function do_update_game_status(game_status_old) {
 
     // Εκκίνηση/επανεκκίνηση παιχνιδιού
 
-    if (game_status.game_players_cnt < 2) {
+    if (me.player_id === null || game_status.game_players_cnt < 2) {
         $('#btn_game_reset').prop('disabled', true);
     } else {
         $('#btn_game_reset').prop('disabled', false);
@@ -135,8 +138,6 @@ function login_to_game() {
 
 function login_success(data) {
     me = data;
-
-    do_update_game_status(); // για πιο άμεση ενημέρωση της κατάστασης
 
     game_status_update();
 }

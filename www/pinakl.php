@@ -22,9 +22,17 @@ if (isset($_SERVER['HTTP_X_TOKEN'])) {
     $input['token'] = '';
 }
 
-// Kλήση API 
+// API 
 
 switch ($r = array_shift($request)) {
+    // Players
+        
+    case 'players':
+        handle_player($method, $request, $input);
+        break;
+
+    // Game
+    
     case 'game':
         if (sizeof($request) == 0) {
             handle_game($method);
@@ -32,6 +40,8 @@ switch ($r = array_shift($request)) {
             header("HTTP/1.1 404 Not Found");
         }
         break;
+
+    // Game round
 
     case 'round':
         if (sizeof($request) == 0) {
@@ -41,10 +51,8 @@ switch ($r = array_shift($request)) {
         }
         break;
 
-    case 'players':
-        handle_player($method, $request, $input);
-        break;
-
+    // Board
+        
     case 'board' :
         switch ($b = array_shift($request)) {
             case '':
@@ -64,29 +72,12 @@ switch ($r = array_shift($request)) {
         exit;
 }
 
-function handle_game($method) {
-    if ($method == 'GET') {
-        get_game_status();
-    }
-    else if ($method == 'POST') {
-        post_game_reset();
-    } else {
-        header('HTTP/1.1 405 Method Not Allowed');
-    }
-}
-
-function handle_round($method) {
-    if ($method == 'POST') {
-        post_round_reset();
-    } else {
-        header('HTTP/1.1 405 Method Not Allowed');
-    }
-}
-
 function handle_player($method, $p, $input) {
     if ($method == 'POST') {
         $player_id = (int) array_shift($p);
 
+        // Εισαγωγή παίκτη
+        
         post_player($player_id, $input);
     } else {
         header('HTTP/1.1 405 Method Not Allowed');
@@ -106,6 +97,30 @@ function handle_player($method, $p, $input) {
       break;
       }
       } */
+}
+
+function handle_game($method) {
+    if ($method == 'GET') {
+        // Τρέχουσα κατάσταση παιχνιδιού
+        
+        get_game_status();
+    } else if ($method == 'POST') {
+        
+        // Έκκίνηση/Επανεκκίνηση παιχνιδιού
+        post_game_reset();
+    } else {
+        header('HTTP/1.1 405 Method Not Allowed');
+    }
+}
+
+function handle_round($method) {
+    if ($method == 'POST') {
+
+        // Έκκίνηση νέου γύρου
+        post_round_reset();
+    } else {
+        header('HTTP/1.1 405 Method Not Allowed');
+    }
 }
 
 function handle_board($method, $input) {

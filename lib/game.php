@@ -1,5 +1,8 @@
 <?php
 
+define("CARD_OWNER_CENTER", 1);
+define("CARD_OWNER_STACK", 2);
+
 function get_game_status() {
     $game = db_read_game();
 
@@ -15,17 +18,76 @@ function get_game_status() {
 
 function post_game_reset() {
     $game = db_read_game();
-    
-    if ($game && $game['game_phase'] > 1) {
+
+    if ($game && $game['game_phase'] > 1) { // Αν το παιχνίδι έχει ήδη ξεκινήσει ...
+        // ... καθαρισμός ΒΔ από στοιχεία τρέχοντος παιχνιδιού
         db_game_reset();
+    } else {                                // Αλλιώς ...
+        // ... ενημέρωση ΒΔ για έναρξη παιχνιδιού και 1ου γύρου
+        db_start_game();
     }
-    else {
-        db_update_game_to_start();
-    }    
+
+    // Μοίρασμα χαρτιών
+    deal($game['game_players_cnt']);
 }
 
 function post_round_reset() {
+    $game = db_read_game();
+
+    // Καθαρισμός ΒΔ από στοιχεία τρέχοντος γύρου
     db_round_reset();
+
+    // Μοίρασμα χαρτιών
+    deal($game['game_players_cnt']);
+}
+
+function deal($players_cnt) {
+    // Διάβασμα φύλλων από τη βάση
+
+    $cards = db_read_board();
+
+    // Ανακάτεμα φύλλων
+
+    shuffle($cards);
+
+    // Μοίρασμα 12 φύλλων σε κάθε παίκτη 
+    // (δύο φύλλα ανά παίκτη σε κάθε γύρο του μοιράσματος)
+
+    $deal_round_cards_cnt = $players_cnt * 2;
+
+    for ($i = 0; $i < $players_cnt; $i++) {
+        $seriesNo[$i] = 1;
+    }
+    
+    for ($i = 0; $i < $players_cnt * 12; $i = $i + $deal_round_cards_cnt) {
+        for ($j = 0; $j < $deal_round_cards_cnt; $j++) {
+            $player_id = intdiv($j, 2);
+            
+            $cards[$i + $j]['card_owner'] = CARD_OWNER_STACK + $player_id + 1;
+            $cards[$i + $j]['card_series'] = 1;
+            $cards[$i + $j]['card_series_no'] = $seriesNo[$player_id]++;
+        }
+    }
+
+    // Τοποθέτηση 1 ανοικτού χαρτιού στο Κέντρο
+
+    $i = $players_cnt * 12;
+
+    $cards[$i]['card_owner'] = CARD_OWNER_CENTER;
+    $cards[$i]['card_series'] = 1;
+    $cards[$i]['card_series_no'] = 1;
+
+    // Τοποθέτηση υλοποίπων χαρτιών στη Στοίβα
+
+    for ($i = $players_cnt * 12 + 1, $seriesNo = 1; $i < 52; $i++, $seriesNo++) {
+        $cards[$i]['card_owner'] = CARD_OWNER_STACK;
+        $cards[$i]['card_series'] = 1;
+        $cards[$i]['card_series_no'] = $seriesNo;
+    }
+
+    // Ενημέρωση βάσης
+    
+    db_update_board_after_dealing($cards);
 }
 
 function update_game_status() {
@@ -74,7 +136,7 @@ function update_game_status() {
     $st->execute();
 }
 
-//**************************** DB *********************************************/
+//**************************** ΒΔ *********************************************/
 
 function db_read_game() {
     global $mysqli;
@@ -115,7 +177,7 @@ function db_update_game_after_create_player() {
     $st->execute();
 }
 
-function db_update_game_to_start() {
+function db_start_game() {
     global $mysqli;
 
     $sql = 'update game '

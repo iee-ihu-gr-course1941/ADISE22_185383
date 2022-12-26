@@ -116,7 +116,22 @@ function check_new_player($player_id, $player_name) {
     return CHECK_NEW_PLAYER_VALID_PLAYER_NOT_EXISTS;
 }
 
-//**************************** DB *********************************************/
+//**************************** ΒΔ *********************************************/
+
+function db_read_players() {
+    global $mysqli;
+    
+    $sql = 'select * from players order by player_id';
+    
+    $st = $mysqli->prepare($sql);
+    $st->execute();
+    
+    $res = $st->get_result();
+    
+    $players = $res->fetch_all(MYSQLI_ASSOC);
+    
+    return($players);
+}
 
 function db_read_player($player_id) {
     global $mysqli;

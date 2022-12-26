@@ -1,7 +1,7 @@
 <?php
 
 $host = 'localhost';
-$db = 'pinakl';
+$db = 'adise22_185383';
 require_once "db_upass.php";
 
 $user = $DB_USER;
