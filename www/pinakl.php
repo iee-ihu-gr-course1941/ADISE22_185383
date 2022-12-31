@@ -26,13 +26,13 @@ if (isset($_SERVER['HTTP_X_TOKEN'])) {
 
 switch ($r = array_shift($request)) {
     // Players
-        
+
     case 'players':
         handle_player($method, $request, $input);
         break;
 
     // Game
-    
+
     case 'game':
         if (sizeof($request) == 0) {
             handle_game($method);
@@ -52,20 +52,9 @@ switch ($r = array_shift($request)) {
         break;
 
     // Board
-        
+
     case 'board' :
-        switch ($b = array_shift($request)) {
-            case '':
-            case null:
-                handle_board($method, $input);
-                break;
-            case 'piece':
-                handle_piece($method, $request[0], $request[1], $input);
-                break;
-            default:
-                header("HTTP/1.1 404 Not Found");
-                break;
-        }
+        handle_board($method, $request, $input);
         break;
 
     default: header("HTTP/1.1 404 Not Found");
@@ -77,35 +66,20 @@ function handle_player($method, $p, $input) {
         $player_id = (int) array_shift($p);
 
         // Εισαγωγή παίκτη
-        
+
         post_player($player_id, $input);
     } else {
         header('HTTP/1.1 405 Method Not Allowed');
     }
-    /* ////
-      switch ($b = array_shift($p)) {
-      //	case '':
-      //	case null: if($method=='GET') {show_users($method);}
-      //			   else {header("HTTP/1.1 400 Bad Request");
-      //					 print json_encode(['errormesg'=>"Method $method not allowed here."]);}
-      //                break;
-      case 'B':
-      case 'W': handle_user($method, $b, $input);
-      break;
-      default: header("HTTP/1.1 404 Not Found");
-      print json_encode(['errormesg' => "Player $b not found."]);
-      break;
-      }
-      } */
 }
 
 function handle_game($method) {
     if ($method == 'GET') {
         // Τρέχουσα κατάσταση παιχνιδιού
-        
+
         get_game_status();
     } else if ($method == 'POST') {
-        
+
         // Έκκίνηση/Επανεκκίνηση παιχνιδιού
         post_game_reset();
     } else {
@@ -116,30 +90,26 @@ function handle_game($method) {
 function handle_round($method) {
     if ($method == 'POST') {
 
-        // Έκκίνηση νέου γύρου
+        // Έκκίνηση/Επανεκκίνηση γύρου
         post_round_reset();
     } else {
         header('HTTP/1.1 405 Method Not Allowed');
     }
 }
 
-function handle_board($method, $input) {
+function handle_board($method, $p, $input) {
     if ($method == 'GET') {
-        show_board($input);
+        // Διάβασμα τρέχουσας κατάστασης
+
+        get_board();
     } else if ($method == 'POST') {
-        reset_board();
-        show_board($input);
+        $player_id = (int) array_shift($p);
+
+        // Αποθήκευση κινήσεων παίκτη
+
+        post_board($player_id, $input);
     } else {
         header('HTTP/1.1 405 Method Not Allowed');
-    }
-}
-
-function handle_piece($method, $x, $y, $input) {
-    if ($method == 'GET') {
-        show_piece($x, $y);
-    } else if ($method == 'PUT') {
-        move_piece($x, $y, $input['x'], $input['y'],
-                $input['token']);
     }
 }
 

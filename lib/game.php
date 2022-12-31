@@ -58,11 +58,11 @@ function deal($players_cnt) {
     for ($i = 0; $i < $players_cnt; $i++) {
         $seriesNo[$i] = 1;
     }
-    
+
     for ($i = 0; $i < $players_cnt * 12; $i = $i + $deal_round_cards_cnt) {
         for ($j = 0; $j < $deal_round_cards_cnt; $j++) {
             $player_id = intdiv($j, 2);
-            
+
             $cards[$i + $j]['card_owner'] = CARD_OWNER_STACK + $player_id + 1;
             $cards[$i + $j]['card_series'] = 1;
             $cards[$i + $j]['card_series_no'] = $seriesNo[$player_id]++;
@@ -86,54 +86,46 @@ function deal($players_cnt) {
     }
 
     // Ενημέρωση βάσης
-    
-    db_update_board_after_dealing($cards);
+
+    db_update_board($cards);
 }
 
-function update_game_status() {
-    global $mysqli;
+function update_game_status($player_id, $board) {
+    $game = db_read_game();
 
-    $status = read_status();
+    // Καθορισμός επόμενης φάσης παιχνιδιού
 
-    $new_status = null;
-    $new_turn = null;
+    if (is_winner($player_id, $game, $board)) {
+        $next_game_phase = 3; // Τερματισμός γύρου
+    } else {
+        $next_game_phase = $game['game_phase'];
+    }
 
-    $st3 = $mysqli->prepare('select count(*) as aborted from players WHERE last_action< (NOW() - INTERVAL 5 MINUTE)');
-    $st3->execute();
-    $res3 = $st3->get_result();
-    $aborted = $res3->fetch_assoc()['aborted'];
-    if ($aborted > 0) {
-        $sql = "UPDATE players SET username=NULL, player_token=NULL WHERE last_action< (NOW() - INTERVAL 5 MINUTE)";
-        $st2 = $mysqli->prepare($sql);
-        $st2->execute();
-        if ($status['status'] == 'started') {
-            $new_status = 'aborted';
+    // Καθορισμός επόμενου παίκτη
+
+    if ($next_game_phase === 3) { // Τερματισμός γύρου
+        $next_player_id = $player_id;
+    } else {
+        $next_player_id = $player_id + 1;
+
+        if ($next_player_id > $game['game_players_cnt']) {
+            $next_player_id = 1;
         }
     }
 
+    db_update_game_status($next_player_id, $next_game_phase);
+}
 
-    $sql = 'select count(*) as c from players where username is not null';
-    $st = $mysqli->prepare($sql);
-    $st->execute();
-    $res = $st->get_result();
-    $active_players = $res->fetch_assoc()['c'];
-
-    switch ($active_players) {
-        case 0: $new_status = 'not active';
-            break;
-        case 1: $new_status = 'initialized';
-            break;
-        case 2: $new_status = 'started';
-            if ($status['p_turn'] == null) {
-                $new_turn = 'W'; // It was not started before...
-            }
-            break;
+function is_winner($player_id, $game, $cards) {
+    $card_cnt = 0;
+    for ($i = 0; $i < 52; $i++) {
+        if ($cards[$i]['card_owner'] == $player_id + 2 &&
+                $cards[$i]['card_series'] == 1) {
+            $card_cnt++;
+        }
     }
 
-    $sql = 'update game_status set status=?, p_turn=?';
-    $st = $mysqli->prepare($sql);
-    $st->bind_param('ss', $new_status, $new_turn);
-    $st->execute();
+    return $card_cnt == 0;
 }
 
 //**************************** ΒΔ *********************************************/
@@ -169,8 +161,7 @@ function db_update_game_after_create_player() {
     $sql = 'update game '
             . 'set game_phase = 1, '
             . 'game_players_cnt = game_players_cnt + 1, '
-            . 'game_current_player_id = 1, '
-            . 'game_current_player_step = 1 ';
+            . 'game_current_player_id = 1 ';
 
     $st = $mysqli->prepare($sql);
 
@@ -194,6 +185,19 @@ function db_game_reset() {
     $sql = 'call game_reset()';
 
     $mysqli->query($sql);
+}
+
+function db_update_game_status($next_player_id, $next_game_phase) {
+    global $mysqli;
+
+    $sql = 'update game '
+            . 'set game_phase = ?, '
+            . '    game_current_player_id = ? ';
+
+    $st = $mysqli->prepare($sql);
+    $st->bind_param('ii', $next_game_phase, $next_player_id);
+
+    $st->execute();
 }
 
 function db_round_reset() {
