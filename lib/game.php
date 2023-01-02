@@ -3,6 +3,9 @@
 define("CARD_OWNER_CENTER", 1);
 define("CARD_OWNER_STACK", 2);
 
+/**
+ * GET μέθοδος άντλησης κατάστασης παιχνιδιού
+ */
 function get_game_status() {
     $game = db_read_game();
 
@@ -16,21 +19,29 @@ function get_game_status() {
     print json_encode($game, JSON_PRETTY_PRINT);
 }
 
+/**
+ * POST μέθοδος εκκίνησης/επανεκκίνησης παιχνιδιού
+ */
 function post_game_reset() {
     $game = db_read_game();
 
-    if ($game && $game['game_phase'] > 1) { // Αν το παιχνίδι έχει ήδη ξεκινήσει ...
-        // ... καθαρισμός ΒΔ από στοιχεία τρέχοντος παιχνιδιού
-        db_game_reset();
-    } else {                                // Αλλιώς ...
+    if ($game &&
+            $game['game_phase'] === 1 &&
+            $game['game_players_cnt'] >= 2) { // Αν το παιχνίδι βρίσκεται σε φάση ένταξης παικτών και υπάρχουν ήδη 2 παίκτες ...
         // ... ενημέρωση ΒΔ για έναρξη παιχνιδιού και 1ου γύρου
         db_start_game();
-    }
 
-    // Μοίρασμα χαρτιών
-    deal($game['game_players_cnt']);
+        // Μοίρασμα χαρτιών
+        deal($game['game_players_cnt']);
+    } else {                                 // Αλλιώς ...
+        // ... καθαρισμός ΒΔ από στοιχεία τρέχοντος παιχνιδιού
+        db_game_reset();
+    }
 }
 
+/**
+ * POST μέθοδος εκκίνησης/επανεκκίνησης γύρου παιχνιδιού
+ */
 function post_round_reset() {
     $game = db_read_game();
 
@@ -41,6 +52,19 @@ function post_round_reset() {
     deal($game['game_players_cnt']);
 }
 
+/**
+ * GET μέθοδος άντλησης ScoreBoard
+ */
+function get_game_history() {
+    $history = db_read_history();
+
+    header('Content-type: application/json');
+    print json_encode($history, JSON_PRETTY_PRINT);
+}
+
+/**
+ * Μοίρασμα φύλλων σε Κέντρο, Στοίβα και Παίκτες
+ */
 function deal($players_cnt) {
     // Διάβασμα φύλλων από τη βάση
 
@@ -90,6 +114,9 @@ function deal($players_cnt) {
     db_update_board($cards);
 }
 
+/**
+ * Ενημέρωση κατάστασης παιχνιδιού
+ */
 function update_game_status($player_id, $board) {
     $game = db_read_game();
 
@@ -105,6 +132,8 @@ function update_game_status($player_id, $board) {
 
     if ($next_game_phase === 3) { // Τερματισμός γύρου
         $next_player_id = $player_id;
+
+        update_history($player_id, $game['game_players_cnt']);
     } else {
         $next_player_id = $player_id + 1;
 
@@ -116,6 +145,9 @@ function update_game_status($player_id, $board) {
     db_update_game_status($next_player_id, $next_game_phase);
 }
 
+/**
+ * Έλεγχος αν ένας παίκτης είναι νικητής (δηλ. δεν έχει φύλλα στα χέρια του)
+ */
 function is_winner($player_id, $game, $cards) {
     $card_cnt = 0;
     for ($i = 0; $i < 52; $i++) {
@@ -128,12 +160,88 @@ function is_winner($player_id, $game, $cards) {
     return $card_cnt == 0;
 }
 
+/**
+ * Ενημέρωση ScoreBoard με τους πόντους του τελευταίου γύρου 
+ * (μετά τον τερματισμό του)
+ */
+function update_history($winner_id, $game_players_cnt) {
+    $points_hand = array();
+    $points_hand[1] = 0;
+    $points_hand[2] = 0;
+    $points_hand[3] = 0;
+
+    $points_down = array();
+    $points_down[1] = 0;
+    $points_down[2] = 0;
+    $points_down[3] = 0;
+
+    $cards = db_read_board();
+
+    for ($i = 0; $i < 52; $i++) {
+        if ($cards[$i]['card_owner'] > 2) {
+            $player_id = $cards[$i]['card_owner'] - 2;
+
+            $card_no = $cards[$i]['card_no'];
+            $card_series = $cards[$i]['card_series'];
+
+            if ($card_series > 1) {
+                $points_down[$player_id] = $points_down[$player_id] +
+                        calc_points($card_no);
+            } else {
+                $points_hand[$player_id] = $points_hand[$player_id] +
+                        calc_points($card_no);
+            }
+        }
+    }
+
+    $points_down[$winner_id] = $points_down[$winner_id] + 10;
+
+    if ($game_players_cnt >= 1) {
+        if ($points_down[1] === 0) {
+            $points_hand[1] = $points_hand[1] * 2;
+        }
+    }
+
+    if ($game_players_cnt >= 2) {
+        if ($points_down[2] === 0) {
+            $points_hand[2] = $points_hand[2] * 2;
+        }
+    }
+
+    if ($game_players_cnt >= 3) {
+        if ($points_down[3] === 0) {
+            $points_hand[3] = $points_hand[3] * 2;
+        }
+    }
+
+    $history_id = db_find_max_history_id() + 1;
+
+    db_insert_history($history_id,
+            $points_down[1] - $points_hand[1],
+            $points_down[2] - $points_hand[2],
+            $points_down[3] - $points_hand[3]);
+}
+
+function calc_points($card_no) {
+    if ($card_no === '2') {
+        return 2;
+    } else if ($card_no === 'A') {
+        return 1.5;
+    } else if ($card_no > '3' && $card_no < '6') {
+        return 0.5;
+    } else {
+        return 1;
+    }
+}
+
 //**************************** ΒΔ *********************************************/
 
 function db_read_game() {
     global $mysqli;
 
-    $sql = 'select * from game';
+    $sql = 'SELECT g.*, 
+		IFNULL((SELECT MAX(history_id) FROM history), 0) + 1 game_round 
+            from game g';
 
     $st = $mysqli->prepare($sql);
 
@@ -206,6 +314,53 @@ function db_round_reset() {
     $sql = 'call round_reset()';
 
     $mysqli->query($sql);
+}
+
+function db_find_max_history_id() {
+    global $mysqli;
+
+    $sql = 'select max(history_id) max_history_id from history';
+
+    $st = $mysqli->prepare($sql);
+    $st->execute();
+
+    $res = $st->get_result();
+
+    $result = $res->fetch_assoc();
+
+    if ($result) {
+        return 0;
+    } else {
+        return $result['max_history_id'];
+    }
+}
+
+function db_insert_history($history_id, $points1, $points2, $points3) {
+    global $mysqli;
+
+    $sql = 'insert into history(history_id, history_points1, history_points2, history_points3) '
+            . 'values(?, ?, ?, ?)';
+
+    $st = $mysqli->prepare($sql);
+    $st->bind_param('iiii', $history_id, $points1, $points2, $points3);
+
+    $st->execute();
+}
+
+function db_read_history() {
+    global $mysqli;
+
+    $sql = 'select * from history';
+
+    $st = $mysqli->prepare($sql);
+
+    $st->execute();
+
+    $res = $st->get_result();
+
+    $history = $res->fetch_all(MYSQLI_ASSOC);
+
+    return($history);
 }
 
 ?>

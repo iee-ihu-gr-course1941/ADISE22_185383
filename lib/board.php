@@ -1,5 +1,8 @@
 <?php
 
+/**
+ * GET μέθοδος άντλησης board από τη βάση
+ */
 function get_board() {
     $board = db_read_board();
 
@@ -7,7 +10,11 @@ function get_board() {
     print json_encode($board, JSON_PRETTY_PRINT);
 }
 
-function post_board($player_id, $input) {
+/**
+ * PUT μέθοδος αποθήκευσης τελευταίων κινήσεων παίκτη (επιλογή και απόρριψη φύλλων) 
+ * στη βάση
+ */
+function put_board($player_id, $input) {
     $board = $input['board'];
     
     db_update_board($board);

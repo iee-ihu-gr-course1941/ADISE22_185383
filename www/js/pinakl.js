@@ -4,19 +4,23 @@ const PlayerSteps = {// Βήματα Παίκτη:
     ThrowingCards: 2    // 2. Απόρριψη φύλλων (είτε κάνοντας σειρές είτε, τελικώς, στο κέντρο)
 }
 
+const BackCardCode = '&#127136;';
 var me = {player_token: null, player_id: null, player_name: null};
+
 var game_status = {};
 var board = {};
 var current_player_step = PlayerSteps.None;
-var last_update = new Date().getTime();
 var timer = null;
+
 var card_tomove = null;
 var old_board = null;
+var game_history_enabled = false;
 
 $(function () {
     $('#btn_login').click(login_to_game);
     $('#btn_round_reset').click(round_reset);
     $('#btn_game_reset').click(game_reset);
+    $('#btn_history').click(show_game_history);
 
     game_status_reload();
 });
@@ -34,9 +38,15 @@ function game_status_reload() {
 }
 
 function do_game_status_reload(data) {
-    last_update = new Date().getTime();
-
     game_status = data;
+
+    if (me.player_id && me.player_id > game_status.game_players_cnt) { // Αν έχει γίνει επανεκκίνηση από άλλο παίκτη ...
+        // ... Καθαρισμός στοιχείων παίκτη
+
+        me = {player_token: null, player_id: null, player_name: null};
+
+        set_current_player_step(PlayerSteps.None);
+    }
 
     var timer_period = 3000;
 
@@ -62,22 +72,23 @@ function do_game_status_reload(data) {
 
     // Φύλλα παικτών και στοιχεία κίνησης
 
-    if (me.player_id !== null) {
-        if (game_status.game_current_player_id === me.player_id) {
-            if (current_player_step === PlayerSteps.None) {
-                fill_board();
-            }
-
-            // Αναμονή για κίνηση τρέχοντος παίκτη
-            timer_period = 15000;
-        } else {
+    if (me.player_id !== null &&
+            game_status.game_current_player_id === me.player_id) {
+        if (current_player_step === PlayerSteps.None) {
             fill_board();
         }
+
+        // Αναμονή για κίνηση τρέχοντος παίκτη
+        timer_period = 15000;
+    } else {
+        fill_board();
     }
 
     // Εκκίνηση/επανεκκίνηση γύρου
 
-    if (me.player_id !== null && game_status.game_phase > 1) {
+    if (me.player_id !== null &&
+            game_status.game_current_player_id === me.player_id &&
+            game_status.game_phase > 1) {
         if (!$('#btn_round_reset').is(':visible')) {
             $('#btn_round_reset').show(1000);
         }
@@ -89,10 +100,36 @@ function do_game_status_reload(data) {
 
     // Εκκίνηση/επανεκκίνηση παιχνιδιού
 
-    if (me.player_id && game_status.game_players_cnt >= 2) {
+    if (me.player_id !== null &&
+            game_status.game_current_player_id === me.player_id &&
+            game_status.game_players_cnt >= 2) {
         $('#btn_game_reset').prop('disabled', false);
     } else {
         $('#btn_game_reset').prop('disabled', true);
+    }
+
+    // Scoreboard
+
+    if (me.player_id !== null) {
+        if (!$('#btn_history').is(':visible')) {
+            $('#btn_history').show(1000);
+        }
+
+        if (!$('#div_history').is(':visible') && game_history_enabled) {
+            $('#div_history').show(1000);
+        }
+    } else {
+        if ($('#btn_history').is(':visible')) {
+            $('#btn_history').hide(1000);
+        }
+
+        if ($('#div_history').is(':visible')) {
+            $('#div_history').hide(1000);
+        }
+    }
+
+    if (game_history_enabled) {
+        game_history_reload();
     }
 
     // Ενεργοποίηση timer
@@ -104,20 +141,34 @@ function do_game_status_reload(data) {
 
 function show_game_info() {
     var action = 'Επιλογή φύλλων από Κέντρο ή ενός φύλλου από Στοίβα...';
-    if (current_player_step > 1) {
+    if (current_player_step > PlayerSteps.TakingCards) {
         action = 'Απόρριψη Φύλλων είτε κάνοντας Σειρές είτε, τελικά, στο Κέντρο...'
     }
 
+    var html = '';
+
     if (me.player_id !== null) {
-        $('#div_game_info').html('<b>Είστε ο παίκτης <em>#' + me.player_id + '</em></b> (Όνομα: <em>' + me.player_name + '</em>, Token: <em>' + me.player_token + '</em>)<br>' +
-                '<b>Παίζει ο Παίκτης <em>#' + game_status.game_current_player_id + '</em></b><br>' +
-                'Φάση Παιχνιδιού: <em>' + get_game_phase_description(game_status.game_phase) + '</em><br>' +
-                'Αναμενόμενη Ενέργεια: <em>' + action + '</em><br>');
+        html = '<b>Είστε ο Παίκτης <em>#' + me.player_id + '</em></b> (Όνομα: <em>' + me.player_name + '</em>, Token: <em>' + me.player_token + '</em>)<br>' +
+                'Φάση παιχνιδιού: <em>' + get_game_phase_description(game_status.game_phase, game_status.game_round) + '</em><br>';
+
+        if (game_status.game_phase === 2) { // Παίξιμο
+            html = html +
+                    '<b>Παίζει ο Παίκτης <em>#' + game_status.game_current_player_id + '</em></b><br>' +
+                    'Αναμενόμενη ενέργεια: <em>' + action + '</em><br>';
+        } else if (game_status.game_phase === 3) { // Τερματισμός
+            html = html +
+                    '<b>Νικητής είναι ο Παίκτης <em>#' + game_status.game_current_player_id + '</em></b><br>';
+        }
     }
+
+    $('#div_game_info').html(html);
 }
 
 /**************************** Login *******************************************/
 
+/**
+ * Είσοδος νέου παίκτη στο παιχνίδι
+ */
 function login_to_game() {
     if ($('#player_name').val() === '') {
         alert('Δεν έχει καθοριστεί το Όνομα Παίκτη-Χρήστη!');
@@ -150,7 +201,19 @@ function login_error(data) {
 
 /********************** Game/Round ********************************************/
 
+/**
+ * Εκκίνηση/επανεκκίνηση παιχνιδιού 
+ * με πλήρη καθαρισμό των στοιχείων του προηγούμενου παιχνιδιού 
+ * (π.χ. παίκτες, πόντοι κλπ.)
+ */
 function game_reset() {
+    if (game_status.game_phase !== 1 ||
+            game_status.game_players_cnt < 2) {
+        me = {player_token: null, player_id: null, player_name: null};
+    }
+
+    set_current_player_step(PlayerSteps.None);
+
     $.ajax({
         url: "pinakl.php/game/",
         headers: {"X-Token": me.token},
@@ -158,7 +221,13 @@ function game_reset() {
         success: game_status_reload});
 }
 
+/**
+ * Εκκίνηση/επανεκκίνηση γύρου, στο τρέχον παιχνίδι, 
+ * με διατήρηση παικτών και πόντων.
+ */
 function round_reset() {
+    set_current_player_step(PlayerSteps.None);
+
     $.ajax({
         url: "pinakl.php/round/",
         headers: {"X-Token": me.token},
@@ -166,19 +235,118 @@ function round_reset() {
         success: game_status_reload});
 }
 
-/********************** Board ********************************************/
+/**
+ * Εμφάνιση/απόκρυψη ScoreBoard
+ */
+function show_game_history() {
+    if (!game_history_enabled) {
+        game_history_enabled = true;
 
+        $('#btn_history').text('ΑΠΟΚΡΥΨΗ SCOREBOARD ΠΑΙΧΝΙΔΙΟΥ');
+        $('#div_history').show(1000);
+
+        game_history_reload();
+    } else {
+        game_history_enabled = false;
+
+        $('#btn_history').text('SCOREBOARD ΠΑΙΧΝΙΔΙΟΥ');
+        $('#div_history').hide(1000);
+    }
+}
+
+/**
+ * Άντληση πόντων από το API
+ */
+function game_history_reload() {
+    $.ajax({
+        url: "pinakl.php/history/",
+        success: do_game_history_reload,
+        headers: {"X-Token": me.player_token}
+    });
+}
+
+/**
+ * Εμφάνιση πίνακα πόντων
+ */
+function do_game_history_reload(data) {
+    var total_points1 = 0;
+    var total_points2 = 0;
+    var total_points3 = 0;
+
+    var html = `<table>
+                        <tr>
+                            <th>Γύρος</th>     
+                            <th>Παίκτης 1</th>     
+                            <th>Παίκτης 2</th>     
+                            <th>Παίκτης 3</th>     
+                        </tr>`;
+
+    for (let i = 0; i < data.length; i++) {
+        var round = data[i];
+
+        html = html +
+                `<tr>
+                    <td>${round.history_id}</td>     
+                    <td>${round.history_points1}</td>     
+                    <td>${round.history_points2}</td>     
+                    <td>${round.history_points3}</td>     
+                </tr>`;
+
+        total_points1 = total_points1 + round.history_points1;
+        total_points2 = total_points2 + round.history_points2;
+        total_points3 = total_points3 + round.history_points3;
+    }
+
+    const max_total_points = Math.max(total_points1, total_points2, total_points3);
+
+    var class1 = '';
+    var class2 = '';
+    var class3 = '';
+
+    if (max_total_points !== 0) {
+        if (total_points1 === max_total_points) {
+            class1 = "class='winner'";
+        }
+        if (total_points2 === max_total_points) {
+            class2 = "class='winner'";
+        }
+        if (total_points3 === max_total_points) {
+            class3 = "class='winner'";
+        }
+    }
+
+    html = html +
+            `   <tr>
+                    <th>Σύνολο</th>
+                    <th ${class1}>${total_points1}</th>     
+                    <th ${class2}>${total_points2}</th>     
+                    <th ${class3}>${total_points3}</th>     
+                </tr>`;
+
+    html = html + '</table';
+
+    $('#div_history').html(html);
+}
+
+/*************************** Board ********************************************/
+
+/**
+ * Άντληση και εμφάνιση board τρέχοντος παίκτη
+ */
 function fill_board() {
     $.ajax({url: "pinakl.php/board/",
         headers: {"X-Token": me.token},
         success: do_fill_board});
 }
 
+/**
+ * Αποθήκευση τελευταίων κινήσεων παίκτη (επιλογή και απόρριψη φύλλων) στη βάση
+ */
 function save_board() {
     var player_id = me.player_id;
 
     $.ajax({url: "pinakl.php/board/" + player_id,
-        method: 'POST',
+        method: 'PUT',
         dataType: "json",
         headers: {"X-Token": me.player_token},
         contentType: 'application/json',
@@ -199,19 +367,24 @@ function show_board() {
 
     board_element.html('');
 
-    // Φύλλα κέντρου
+    if (me.player_id && game_status.game_phase >= 2) {
+        // Φύλλα κέντρου
 
-    show_board_band(board_element, 1);
+        show_board_band(board_element, 1);
 
-    // Φύλλα στοίβας
+        // Φύλλα στοίβας
 
-    show_board_band(board_element, 2);
+        show_board_band(board_element, 2);
 
-    // Φύλλα παίκτη
+        // Φύλλα παίκτη
 
-    show_board_band(board_element, me.player_id + 2);
+        show_board_band(board_element, player_id_2_band_id(me.player_id));
+    }
 }
 
+/**
+ * Ταξινόμηση των φύλλων ως προς Κάτοχο, Σειρά και Αριθμό Σειράς
+ */
 function sort_board() {
     if (board) {
         board.sort(
@@ -240,12 +413,15 @@ function sort_board() {
     }
 }
 
-function show_board_band(board_element, owner) {
-    var band_html = `<div class='band' id='band_${owner}'
+/**
+ * Εμφάνιση των φύλλων μίας Ζώνης (Κατόχου)
+ */
+function show_board_band(board_element, band_id) {
+    var band_html = `<div class='band' id='band_${band_id}'
                           ondrop="drop(event)" ondragover="allowDrop(event)" >
-                        <label class='bandtitle' id='bandtitle_${owner}'
-                               ondrop="drop(event)" ondragover="allowDrop(event)">${get_band_description(owner)}</label>
-                        <div class='bandcontent' id='bandcontent_${owner}'
+                        <label class='bandtitle' id='bandtitle_${band_id}'
+                               ondrop="drop(event)" ondragover="allowDrop(event)">${get_band_description(band_id)}</label>
+                        <div class='bandcontent' id='bandcontent_${band_id}'
                              ondrop="drop(event)" ondragover="allowDrop(event)">`;
 
     var series = 0;
@@ -259,7 +435,7 @@ function show_board_band(board_element, owner) {
     for (let i = 0; i < board.length; i++) {
         const card = board[i];
 
-        if (card.card_owner === owner) {
+        if (card.card_owner === band_id) {
             if (card.card_series !== series) {
                 series = card.card_series;
 
@@ -274,16 +450,21 @@ function show_board_band(board_element, owner) {
                     series_style = "style='background-color: tan'";
                 }
 
-                cards_html = `<div class='series' id='series_${owner}_${card.card_series}' ${series_style}
+                cards_html = `<div class='series' id='series_${band_id}_${card.card_series}' ${series_style}
                                    ondrop="drop(event)" ondragover="allowDrop(event)">
-                               <ul class='series_content' id='seriescontent_${owner}_${card.card_series}'
+                               <ul class='series_content' id='seriescontent_${band_id}_${card.card_series}'
                                    ondrop="drop(event)" ondragover="allowDrop(event)">`;
             }
 
+            var card_code = card.card_code;
+            if (band_id === 2) { // Στοίβα
+                card_code = BackCardCode;
+            }
+
             cards_html = cards_html +
-                    `<li class='card' id='card_${owner}_${card.card_series}_${card.card_id}' 
+                    `<li class='card' id='card_${band_id}_${card.card_series}_${card.card_id}' 
                         ondrop="drop(event)" ondragover="allowDrop(event)" 
-                        draggable="true" ondragstart="drag(event)">${card.card_code}</li>`;
+                        draggable="true" ondragstart="drag(event)">${card_code}</li>`;
         }
     }
 
@@ -298,6 +479,9 @@ function show_board_band(board_element, owner) {
     board_element.append(band_html);
 }
 
+/**
+ * Έναρξη drag-and-drop ενός φύλλου από τον παίκτη
+ */
 function drag(ev) {
     card_tomove = ev.target.id;
 
@@ -307,6 +491,10 @@ function drag(ev) {
     }
 }
 
+/**
+ * Έλεγχος drop ενός φύλλου, σε ένα σημείο, με βάση τους κανόνες του παιχνιδιού
+ * και την τρέχουσα κατάστασή του
+ */
 function allowDrop(ev) {
     if (me.player_id !== game_status.game_current_player_id) {
         return;
@@ -323,7 +511,7 @@ function allowDrop(ev) {
 
         switch (current_player_step) {
             case PlayerSteps.TakingCards:
-                if (target_band_id === me.player_id + 2 &&
+                if (target_band_id === player_id_2_band_id(me.player_id) &&
                         target_series_id === 1) {
                     if (card.card_owner === 1) { // Κέντρο
                         valid = true;
@@ -334,16 +522,16 @@ function allowDrop(ev) {
 
                 break;
             case PlayerSteps.ThrowingCards:
-                if (card.card_owner === me.player_id + 2) {
+                if (card.card_owner === player_id_2_band_id(me.player_id)) {
                     if (card.card_series === 1) {
-                        if (target_band_id === me.player_id + 2) {
+                        if (target_band_id === player_id_2_band_id(me.player_id)) {
                             valid = target_series_id > 1 &&
                                     get_count_of_cards(card.card_owner, card.card_series) > 1;
                         } else if (target_band_id === 1) {
                             valid = target_series_id === 1;
                         }
                     } else {
-                        if (target_band_id === me.player_id + 2) {
+                        if (target_band_id === player_id_2_band_id(me.player_id)) {
                             valid = target_series_id === card.card_series;
                         }
                     }
@@ -359,6 +547,9 @@ function allowDrop(ev) {
     }
 }
 
+/**
+ * drop ενός φύλλου σε ένα αποδεκτό σημείο
+ */
 function drop(ev) {
     const card_id = extract_card_id(card_tomove);
 
@@ -398,70 +589,92 @@ function get_target_series_id(band_id, target_id) {
     return series_id;
 }
 
+/**
+ * Εκτέλεση μετακίνησης ενός φύλλου από ένα σημείο σε ένα άλλο (κατά το drop)
+ */
 function do_move(card_id, target_band_id, target_series_id, target_card_id) {
     var card = find_card(card_id);
 
     var target_max_series_no = find_max_series_no(target_band_id, target_series_id);
 
-    if (target_band_id <= 2) {
-        if (card.card_owner === 1) {
-            const source_max_series_no = find_max_series_no(card.card_owner, card.card_series);
+    if (card.card_owner === 1) {       // Από Κέντρο ...
+        // ... τοποθέτηση μετακινούμενου φύλλου, 
+        // καθώς και των δεξιότερων από αυτό, στο τέλος της επιλεγμένης ζώνης
 
-            const card_owner = card.card_owner;
-            const card_series = card.card_series;
-            const card_series_no = card.card_series_no;
+        const source_max_series_no = find_max_series_no(card.card_owner, card.card_series);
 
-            for (let i = card_series_no; i <= source_max_series_no; i++) {
-                const c = find_card_by_data(card_owner, card_series, i);
+        const card_owner = card.card_owner;
+        const card_series = card.card_series;
+        const card_series_no = card.card_series_no;
 
-                if (c) {
-                    c.card_owner = target_band_id;
-                    c.card_series = target_series_id;
-                    c.card_series_no = ++target_max_series_no;
-                }
+        for (let i = card_series_no; i <= source_max_series_no; i++) {
+            const c = find_card_by_data(card_owner, card_series, i);
+
+            if (c) {
+                c.card_owner = target_band_id;
+                c.card_series = target_series_id;
+                c.card_series_no = ++target_max_series_no;
             }
-        } else {
+        }
+    } else if (card.card_owner === 2) { // Από Στοίβα ...
+        // ... τοποθέτηση μετακινούμενου φύλλου στο τέλος της επιλεγμένης ζώνης
+
+        card.card_owner = target_band_id;
+        card.card_series = target_series_id;
+        card.card_series_no = ++target_max_series_no;
+    } else {                            // Από φύλλα Παίκτη ...
+        if (target_band_id === 1) { //... προς Κέντρο
+            // ... τοποθέτηση μετακινούμενου φύλλου στο τέλος της επιλεγμένης ζώνης
+
             card.card_owner = target_band_id;
             card.card_series = target_series_id;
             card.card_series_no = ++target_max_series_no;
-        }
-    } else {
-        var target_card = find_card(target_card_id);
+        } else {                    //... προς κατεβασμένες σειρές φύλλων παίκτη
+            var target_card = find_card(target_card_id);
 
-        if (target_card) {
-            var temp = new Map();
+            if (target_card) { // Αν γίνεται drop πάνω σε φύλλο ...
+                // ... τοποθέτηση μετακινούμενου φύλλου αριστερά του επιλεγμένου
 
-            for (let i = target_card.card_series_no; i <= target_max_series_no; i++) {
-                if (card.card_series_no !== i) {
-                    const c = find_card_by_data(target_band_id, target_series_id, i);
+                var temp = new Map();
 
-                    if (c) {
-                        temp.set(c.card_id, i + 1);
+                for (let i = target_card.card_series_no; i <= target_max_series_no; i++) {
+                    if (card.card_series_no !== i) {
+                        const c = find_card_by_data(target_band_id, target_series_id, i);
+
+                        if (c) {
+                            temp.set(c.card_id, i + 1);
+                        }
                     }
                 }
-            }
 
-            card.card_owner = target_band_id;
-            card.card_series = target_series_id;
-            card.card_series_no = target_card.card_series_no;
+                card.card_owner = target_band_id;
+                card.card_series = target_series_id;
+                card.card_series_no = target_card.card_series_no;
 
-            for (const key of temp.keys()) {
-                const c = find_card(key);
-                if (c) {
-                    c.card_series_no = temp.get(key);
+                for (const key of temp.keys()) {
+                    const c = find_card(key);
+                    if (c) {
+                        c.card_series_no = temp.get(key);
+                    }
                 }
+            } else {          // αλλιώς ...
+                // ... τοποθέτηση μετακινούμενου φύλλου στο τέλος
+
+                card.card_owner = target_band_id;
+                card.card_series = target_series_id;
+                card.card_series_no = ++target_max_series_no;
             }
-        } else {
-            card.card_owner = target_band_id;
-            card.card_series = target_series_id;
-            card.card_series_no = ++target_max_series_no;
         }
     }
 
-    move_result(card_id, target_band_id, target_series_id);
+    move_result(target_band_id);
 }
 
-function move_result(card_id, target_band_id, series_id) {
+/**
+ * Ολοκλήρωση μετακίνησης ενός φύλλου, ενημέρωση κατάστασης παιχνιδιού και 
+ * αποθήκευση στη βάση
+ */
+function move_result(target_band_id) {
     switch (current_player_step) {
         case PlayerSteps.TakingCards:
             set_current_player_step(PlayerSteps.ThrowingCards);
@@ -471,11 +684,14 @@ function move_result(card_id, target_band_id, series_id) {
             break;
         case PlayerSteps.ThrowingCards:
             if (target_band_id === 1) {
-                if (is_player_board_valid()) {
+                if (is_player_board_valid()) { // Αν τα κατεβασμένα φύλλα ικανοποιούν τους κανόνες του παιχνιδιού ...
+                    // Επαναφορά παιξίματος σε ουδέτερη κατάσταση
                     set_current_player_step(PlayerSteps.None);
 
+                    // Αποθήκευση στη βάση των τελευταίων κινήσεων (επιλογή και απόρριψη φύλλων)
                     save_board();
-                } else {
+                } else {                      // Αλλιώς .... 
+                    // "Ακύρωση" τελευταίας κίνησης και επαναφορά παιξίματος σε κατάσταση απόρριψης φύλλων
                     board = JSON.parse(old_board);
 
                     old_board = null;
@@ -488,8 +704,12 @@ function move_result(card_id, target_band_id, series_id) {
     show_board();
 }
 
+/**
+ * Έλεγχος αν τα κατεβασμένα φύλλα του τρέχοντος παίκτη (σειρές) ικανοποιούν τους
+ * κανόνες του παιχνιδιού.
+ */
 function is_player_board_valid() {
-    const band_id = me.player_id + 2;
+    const band_id = player_id_2_band_id(me.player_id);
     const max_series_id = find_max_series(band_id);
 
     var valid = true;
@@ -692,11 +912,11 @@ function find_card(card_id) {
     return null;
 }
 
-function find_card_by_data(owner, series, series_no) {
+function find_card_by_data(band_id, series, series_no) {
     for (let i = 0; i < board.length; i++) {
         const card = board[i];
 
-        if (card.card_owner === owner &&
+        if (card.card_owner === band_id &&
                 card.card_series === series &&
                 card.card_series_no === series_no) {
             return card;
@@ -706,14 +926,14 @@ function find_card_by_data(owner, series, series_no) {
     return null;
 }
 
-function find_first_normal_card_by_data(owner, series, max_series_no) {
+function find_first_normal_card_by_data(band_id, series, max_series_no) {
     var first;
 
     var i = 1;
     var found = false;
 
     while (i <= max_series_no && !found) {
-        first = find_card_by_data(owner, series, i);
+        first = find_card_by_data(band_id, series, i);
 
         if (first && first.card_no !== '2') {
             found = true;
@@ -760,14 +980,14 @@ function get_card_no_val(card_no) {
     }
 }
 
-function get_game_phase_description(phase) {
+function get_game_phase_description(phase, round) {
     switch (phase) {
         case 1:
             return 'Ένταξη παικτών στο παιχνίδι';
         case 2:
-            return 'Παίξιμο γύρου παιχνιδιού';
+            return 'Παίξιμο γύρου #' + round;
         case 3:
-            return 'Τερματισμός γύρου παιχνιδιού';
+            return 'Τερματισμός γύρου #' + (round - 1);
         default:
             return 'Αρχική';
     }
@@ -786,6 +1006,10 @@ function get_band_description(band_id) {
 
 function set_current_player_step(player_step) {
     current_player_step = player_step;
-    
+
     show_game_info();
+}
+
+function player_id_2_band_id(player_id) {
+    return player_id + 2;
 }

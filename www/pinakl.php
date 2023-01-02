@@ -57,6 +57,17 @@ switch ($r = array_shift($request)) {
         handle_board($method, $request, $input);
         break;
 
+
+    // History
+
+    case 'history':
+        if (sizeof($request) == 0) {
+            handle_history($method);
+        } else {
+            header("HTTP/1.1 404 Not Found");
+        }
+        break;
+
     default: header("HTTP/1.1 404 Not Found");
         exit;
 }
@@ -102,12 +113,22 @@ function handle_board($method, $p, $input) {
         // Διάβασμα τρέχουσας κατάστασης
 
         get_board();
-    } else if ($method == 'POST') {
+    } else if ($method == 'PUT') {
         $player_id = (int) array_shift($p);
 
         // Αποθήκευση κινήσεων παίκτη
 
-        post_board($player_id, $input);
+        put_board($player_id, $input);
+    } else {
+        header('HTTP/1.1 405 Method Not Allowed');
+    }
+}
+
+function handle_history($method) {
+    if ($method == 'GET') {
+        // Ιστορικότητα παιχνιδιού
+
+        get_game_history();
     } else {
         header('HTTP/1.1 405 Method Not Allowed');
     }

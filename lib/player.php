@@ -4,7 +4,11 @@ define("CHECK_NEW_PLAYER_VALID_PLAYER_NOT_EXISTS", 1);
 define("CHECK_NEW_PLAYER_VALID_PLAYER_EXISTS", 2);
 define("CHECK_NEW_PLAYER_ERROR_PLAYER_ID_EXISTS", -1);
 define("CHECK_NEW_PLAYER_ERROR_PLAYER_NAME_EXISTS", -2);
+define("CHECK_NEW_PLAYER_ERROR_INVALID_ID", -3);
 
+/**
+ * POST μέθοδος εισαγωγής νέου παίκτη στο παιχνίδι
+ */
 function post_player($player_id, $input) {
     if (!isset($input['player_name']) || $input['player_name'] == '') {
         header("HTTP/1.1 400 Bad Request");
@@ -27,6 +31,11 @@ function post_player($player_id, $input) {
             print json_encode(['errormesg' => "To Όνομα $player_name χρησιμοποιείται ήδη! Παρακαλώ, επιλέξτε άλλο Όνομα."]);
             exit;
             
+        case CHECK_NEW_PLAYER_ERROR_INVALID_ID:
+            header("HTTP/1.1 400 Bad Request");
+            print json_encode(['errormesg' => "Μη αποδεκτό ID παίκτη!"]);
+            exit;
+
         case CHECK_NEW_PLAYER_VALID_PLAYER_EXISTS:
             $player = db_read_player($player_id);
             break;
@@ -38,8 +47,6 @@ function post_player($player_id, $input) {
 
             db_update_game_after_create_player();
 
-            ////update_game_status();
-
             $player = db_read_player($player_id);
             break;
     }
@@ -48,27 +55,9 @@ function post_player($player_id, $input) {
     print json_encode($player, JSON_PRETTY_PRINT);
 }
 
-function show_users() {
-    global $mysqli;
-    $sql = 'select username,piece_color from players';
-    $st = $mysqli->prepare($sql);
-    $st->execute();
-    $res = $st->get_result();
-    header('Content-type: application/json');
-    print json_encode($res->fetch_all(MYSQLI_ASSOC), JSON_PRETTY_PRINT);
-}
-
-function show_user($b) {
-    global $mysqli;
-    $sql = 'select username,piece_color from players where piece_color=?';
-    $st = $mysqli->prepare($sql);
-    $st->bind_param('s', $b);
-    $st->execute();
-    $res = $st->get_result();
-    header('Content-type: application/json');
-    print json_encode($res->fetch_all(MYSQLI_ASSOC), JSON_PRETTY_PRINT);
-}
-
+/**
+ * Έλεγχος εγκυρότητας εισόδου νέου παίκτη στο παιχνίδι
+ */
 function check_new_player($player_id, $player_name) {
     // Έλεγχος ως προς το player_id
 
@@ -94,6 +83,16 @@ function check_new_player($player_id, $player_name) {
         // Aν το $player_name χρησιμοποιειται από άλλο παίκτη ...
 
         return CHECK_NEW_PLAYER_ERROR_PLAYER_NAME_EXISTS;
+    }
+    
+    // Έλεγχος κάλυψης όλων των προηγουμένων θέσεων από παίκτες
+    // (για παράδειγμα, δε μπορεί να δηλωθεί ένας παίκτης ως 3ος ενώ δεν έχει
+    //  δηλωθεί ο 2ος)
+    
+    $max_player_id = db_find_max_player_id();
+    
+    if ($player_id - $max_player_id !== 1) {
+        return CHECK_NEW_PLAYER_ERROR_INVALID_ID;
     }
 
     return CHECK_NEW_PLAYER_VALID_PLAYER_NOT_EXISTS;
@@ -148,6 +147,26 @@ function db_find_other_player_by_name($player_id, $player_name) {
     $player = $res->fetch_assoc();
 
     return $player;
+}
+
+function db_find_max_player_id() {
+    global $mysqli;
+    
+    $sql = 'select max(player_id) max_player_id from players';
+    
+    $st = $mysqli->prepare($sql);
+    $st->execute();
+    
+    $res = $st->get_result();
+    
+    $result = $res->fetch_assoc();
+    
+    if (!$result) {
+        return 0;
+    }
+    else {
+        return $result['max_player_id'];
+    }
 }
 
 function db_create_player($player_id, $player_name) {

@@ -30,3 +30,11 @@
     font-size: 54px;
     margin: 2px;
 }
+
+table, th, td {
+  border: 1px solid;
+}
+
+.winner {
+    color: red;
+}

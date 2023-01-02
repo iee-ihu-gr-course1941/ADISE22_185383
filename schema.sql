@@ -1,10 +1,3 @@
--- --------------------------------------------------------
--- Διακομιστής:                  127.0.0.1
--- Έκδοση διακομιστή:            8.0.27 - MySQL Community Server - GPL
--- Λειτ. σύστημα διακομιστή:     Win64
--- HeidiSQL Έκδοση:              12.3.0.6589
--- --------------------------------------------------------
-
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET NAMES utf8 */;
 /*!50503 SET NAMES utf8mb4 */;
@@ -28,6 +21,7 @@ CREATE TABLE IF NOT EXISTS `cards` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 -- Dumping data for table adise22_185383.cards: ~52 rows (approximately)
+DELETE FROM `cards`;
 INSERT INTO `cards` (`card_id`, `card_no`, `card_code`, `card_symbol`, `card_owner`, `card_series`, `card_series_no`) VALUES
 	(1, '2', '&#127154;', 'H', 0, 0, 0),
 	(2, '2', '&#127186;', 'C', 0, 0, 0),
@@ -91,16 +85,22 @@ CREATE TABLE IF NOT EXISTS `game` (
   PRIMARY KEY (`game_id`) USING BTREE,
   KEY `FK_game_players` (`game_current_player_id`),
   CONSTRAINT `FK_game_players` FOREIGN KEY (`game_current_player_id`) REFERENCES `players` (`player_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=29 DEFAULT CHARSET=utf8mb3;
 
 -- Dumping data for table adise22_185383.game: ~0 rows (approximately)
+DELETE FROM `game`;
 
 -- Dumping structure for procedure adise22_185383.game_reset
 DELIMITER //
 CREATE PROCEDURE `game_reset`()
 BEGIN
-   CALL round_reset();
+	UPDATE `cards` AS c 
+	SET c.card_owner = 0, 
+		c.card_series = 0,
+		c.card_series_no = 0;  
    
+   delete from `history`;
+
    delete FROM `game`;
    
 	delete from `players`;
@@ -109,15 +109,16 @@ DELIMITER ;
 
 -- Dumping structure for πίνακας adise22_185383.history
 CREATE TABLE IF NOT EXISTS `history` (
-  `history_id` int NOT NULL AUTO_INCREMENT,
-  `history_points1` int NOT NULL,
-  `history_points2` int NOT NULL,
-  `history_points3` int NOT NULL,
+  `history_id` int NOT NULL,
+  `history_points1` int DEFAULT NULL,
+  `history_points2` int DEFAULT NULL,
+  `history_points3` int DEFAULT NULL,
   `history_timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`history_id`) USING BTREE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 -- Dumping data for table adise22_185383.history: ~0 rows (approximately)
+DELETE FROM `history`;
 
 -- Dumping structure for πίνακας adise22_185383.players
 CREATE TABLE IF NOT EXISTS `players` (
@@ -129,6 +130,7 @@ CREATE TABLE IF NOT EXISTS `players` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 -- Dumping data for table adise22_185383.players: ~0 rows (approximately)
+DELETE FROM `players`;
 
 -- Dumping structure for procedure adise22_185383.round_reset
 DELIMITER //
