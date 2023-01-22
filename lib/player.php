@@ -59,22 +59,6 @@ function post_player($player_id, $input) {
  * Έλεγχος εγκυρότητας εισόδου νέου παίκτη στο παιχνίδι
  */
 function check_new_player($player_id, $player_name) {
-    // Έλεγχος ως προς το player_id
-
-    $player1 = db_read_player($player_id);
-
-    if ($player1) {
-        // Αν υπάρχει παίκτης με το ίδιο $player_id ...
-
-        if ($player1['player_name'] != $player_name) {
-            // Aν το player_name, στη βάση, είναι διαφορετικό από το $player_name ...
-
-            return CHECK_NEW_PLAYER_ERROR_PLAYER_ID_EXISTS;
-        } else {
-            return CHECK_NEW_PLAYER_VALID_PLAYER_EXISTS;
-        }
-    }
-
     // Έλεγχος ως προς το player_name
 
     $player2 = db_find_other_player_by_name($player_id, $player_name);
@@ -84,7 +68,25 @@ function check_new_player($player_id, $player_name) {
 
         return CHECK_NEW_PLAYER_ERROR_PLAYER_NAME_EXISTS;
     }
-    
+
+    // Έλεγχος ως προς το player_id
+
+    $player1 = db_read_player($player_id);
+
+    if ($player1) {
+        // Αν υπάρχει παίκτης με το ίδιο $player_id ...
+
+        //if ($player1['player_name'] != $player_name) {
+        //    // Aν το player_name, στη βάση, είναι διαφορετικό από το $player_name ...
+        
+        db_update_player($player_id, $player_name);
+            
+        //    return CHECK_NEW_PLAYER_ERROR_PLAYER_ID_EXISTS;
+        //} else {
+            return CHECK_NEW_PLAYER_VALID_PLAYER_EXISTS;
+        //}
+    }
+  
     // Έλεγχος κάλυψης όλων των προηγουμένων θέσεων από παίκτες
     // (για παράδειγμα, δε μπορεί να δηλωθεί ένας παίκτης ως 3ος ενώ δεν έχει
     //  δηλωθεί ο 2ος)
@@ -176,6 +178,17 @@ function db_create_player($player_id, $player_name) {
 
     $st = $mysqli->prepare($sql);
     $st->bind_param('isi', $player_id, $player_name, $player_id);
+
+    $st->execute();
+}
+
+function db_update_player($player_id, $player_name) {
+    global $mysqli;
+
+    $sql = 'update players set player_name = ? where player_id = ?';
+
+    $st = $mysqli->prepare($sql);
+    $st->bind_param('si', $player_name, $player_id);
 
     $st->execute();
 }
